@@ -95,6 +95,19 @@ class Enrollment(models.Model):
     rating = models.FloatField(default=5.0)
 
 
+class Question(models.Model):
+    question_text=models.TextField(null=False)
+    grade=models.FloatField()
+    course=models.ForeignKey(Course, on_delete=models.CASCADE)
+
+class Choice(models.Model):
+    question=models.ForeignKey(Question, on_delete=models.CASCADE)
+    choice_text=models.TextField()
+    is_correct=models.BooleanField()
+
+class Submission(models.Model):
+    enrollment=models.ForeignKey(Enrollment, on_delete=models.CASCADE)
+    choices=models.ManyToManyField(Choice)
 # <HINT> Create a Question Model with:
     # Used to persist question content for a course
     # Has a One-To-Many (or Many-To-Many if you want to reuse questions) relationship with course
