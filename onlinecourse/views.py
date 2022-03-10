@@ -1,7 +1,7 @@
 from django.shortcuts import render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment
+from .models import Course, Enrollment, Submission
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -102,35 +102,66 @@ def enroll(request, course_id):
 
     return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course.id,)))
 
-
-# <HINT> Create a submit view to create an exam submission record for a course enrollment,
-# you may implement it based on following logic:
-         # Get user and course object, then get the associated enrollment object created when the user enrolled the course
-         # Create a submission object referring to the enrollment
-         # Collect the selected choices from exam form
-         # Add each selected choice object to the submission object
-         # Redirect to show_exam_result with the submission id
-#def submit(request, course_id):
+def submit(request, course_id):
+    course = Course.objects.get(id=course_id)
+    # Get user and course object, then get the associated enrollment object created when the user enrolled the course
+    user = request.user
+    enrollment = Enrollment.objects.get(course_id=course.id, user_id=user.id)
+    # Collect the selected choices from exam form
+    choices = extract_answers(request)
+    # Create a submission object referring to the enrollment
+    submission = Submission(enrollment=enrollment)
+    submission.save()
+    # Add each selected choice object to the submission object
+    submission.choices.set(choices)
+    # Redirect to show_exam_result with the submission id
+    url = reverse(viewname='onlinecourse:show_exam_result', args=(course.id, submission.id))
+    return HttpResponseRedirect(url)
 
 
 # <HINT> A example method to collect the selected choices from the exam form from the request object
-#def extract_answers(request):
-#    submitted_anwsers = []
-#    for key in request.POST:
-#        if key.startswith('choice'):
-#            value = request.POST[key]
-#            choice_id = int(value)
-#            submitted_anwsers.append(choice_id)
-#    return submitted_anwsers
+def extract_answers(request):
+    submitted_anwsers = []
+    for key in request.POST:
+        if key.startswith('choice'):
+            value = request.POST[key]
+            choice_id = int(value)
+            submitted_anwsers.append(choice_id)
+    return submitted_anwsers
 
 
 # <HINT> Create an exam result view to check if learner passed exam and show their question results and result for each question,
 # you may implement it based on the following logic:
-        # Get course and submission based on their ids
-        # Get the selected choice ids from the submission record
-        # For each selected choice, check if it is a correct answer or not
-        # Calculate the total score
-#def show_exam_result(request, course_id, submission_id):
+def show_exam_result(request, course_id, submission_id):
+    # Get course and submission based on their ids
+    course = Course(pk=course_id)
+    submission = Submission(pk=submission_id)
+    # Get the selected choice ids from the submission record
+    choices = submission.choices.all()
+    choice_ids = []
+    for choice in choices:
+        choice_ids.append(choice.id)
+
+    # For each selected choice, check if it is a correct answer or not
+    questions = course.question_set.all()
+    score = 0
+    total_grade = 0
+    for question in questions:
+        total_grade += question.grade
+        if question.is_get_score(choice_ids):
+            # Calculate the earned grade
+            score += question.grade
+
+    final_grade = (score / total_grade) * 100
+
+    context = {
+        'course': course,
+        'selected_ids': choice_ids,
+        'grade': int(final_grade)
+    }
+
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
+
 
 
 
